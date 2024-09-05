@@ -27,7 +27,36 @@ public class TlsProtocol : IProtocol
         _protocols = protocols;
     }
 
-    public string Id => "tls-tcp";
+    public string Id => "/tls/1.0.0";
+
+//     public async Task InitializeTcpClient(IPeerContext context)
+// {
+//     // Extract Remote IP and Port from context.RemoteEndpoint (assuming it's Multiaddress)
+//     Multiaddress remoteAddress = context.RemoteEndpoint;
+
+//     string ipAddress = remoteAddress.Get<IP4>().ToString(); // or IP6 if IPv6 is used
+//     int remotePort = int.Parse(remoteAddress.Get<TCP>().ToString());
+
+//     // Optionally, you can extract the local address and port if needed (context.LocalEndpoint)
+//     Multiaddress localAddress = context.LocalEndpoint;
+//     string localIpAddress = localAddress.Get<IP4>().ToString(); // or IP6 if applicable
+//     int localPort = int.Parse(localAddress.Get<TCP>().ToString());
+
+//     // Now create a TcpClient and optionally bind it to a specific local address and port
+//     TcpClient tcpClient = new TcpClient(new IPEndPoint(IPAddress.Parse(localIpAddress), localPort));
+
+//     // Connect the TcpClient to the remote peer
+//     await tcpClient.ConnectAsync(ipAddress, remotePort);
+
+//     // Now tcpClient is ready to use
+//     NetworkStream networkStream = tcpClient.GetStream();
+    
+//     // Optionally, create an SslStream if you are using TLS
+//     SslStream sslStream = new SslStream(networkStream);
+
+//     // Perform SSL/TLS handshake or proceed with communication
+//     // Example: await sslStream.AuthenticateAsClientAsync("serverName");
+// }
 
     public async Task ListenAsync(IChannel signalingChannel, IChannelFactory? channelFactory, IPeerContext context)
     {
@@ -36,63 +65,54 @@ public class TlsProtocol : IProtocol
         {
             throw new ArgumentException("Protocol is not properly instantiated");
         }
+// byte[] buffer = new byte[8192]; // Adjust buffer size as needed
+//     MemoryStream memoryStream = new MemoryStream();
+//     CancellationToken cancellationToken = CancellationToken.None;
+//     var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)); 
+       
+      
 
-        Multiaddress addr = context.LocalPeer.Address;
-        bool isIP4 = addr.Has<IP4>();
-        MultiaddressProtocol ipProtocol = isIP4 ? addr.Get<IP4>() : addr.Get<IP6>();
-        IPAddress ipAddress = IPAddress.Parse(ipProtocol.ToString());
-        int tcpPort = int.Parse(addr.Get<TCP>().ToString());
 
-        TcpListener listener = new(ipAddress, tcpPort);
 
-        try
-        {
-            listener.Start();
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError("Failed to start listener: {Message}", ex.Message);
-            return;
-        }
+//     while (true)
+//     {
+//         ReadResult readResult = await signalingChannel.ReadAsync(buffer.Length, ReadBlockingMode.WaitAll, timeoutCts.Token);
 
-        IPEndPoint localIpEndpoint = (IPEndPoint)listener.LocalEndpoint!;
+//     // Extract data from ReadOnlySequence<byte> (readResult.Data)
+//     ReadOnlySequence<byte> data = readResult.Data;
 
-        Multiaddress localMultiaddress = new();
-        localMultiaddress = isIP4 ? localMultiaddress.Add<IP4>(localIpEndpoint.Address.MapToIPv4()) : localMultiaddress.Add<IP6>(localIpEndpoint.Address.MapToIPv6());
-        localMultiaddress = localMultiaddress.Add<TCP>(localIpEndpoint.Port);
-        context.LocalEndpoint = localMultiaddress;
+//     // Determine how many bytes were read
+//     int bytesRead = (int)data.Length;
 
-        if (tcpPort == 0)
-        {
-            context.LocalPeer.Address = context.LocalPeer.Address.ReplaceOrAdd<TCP>(localIpEndpoint.Port);
-        }
+//     if (bytesRead == 0)
+//     {
+//         break; // Connection closed
+//     }
 
-        _logger?.LogDebug("TLS server ready to handle connections");
-        context.ListenerReady();
+//     // Write the data from ReadOnlySequence<byte> into the MemoryStream
+//     foreach (var segment in data)
+//     {
+//         await memoryStream.WriteAsync(segment);
+//     }
+//     }
 
-        TaskAwaiter signalingWaiter = signalingChannel.GetAwaiter();
-        signalingWaiter.OnCompleted(() =>
-        {
-            listener.Stop();
-        });
+//     memoryStream.Position = 0; // Reset position for reading from the beginning
+       
+Socket connectedSocket = context.Socket;// existing connected socket;
+// connectedSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+// Create a new TcpClient and assign the existing socket to it
+TcpClient tcpClient = new TcpClient
+{
+    Client = connectedSocket // Assign the connected socket to TcpClient
+};
+
+    _logger?.LogDebug("Successfully received data from signaling channel.");
 
         while (true)
         {
             try
             {
-                TcpClient tcpClient = await listener.AcceptTcpClientAsync();
-                IPEndPoint remoteIpEndpoint = (IPEndPoint)tcpClient.Client.RemoteEndPoint!;
-
-                bool isRemoteIP4 = remoteIpEndpoint.AddressFamily == AddressFamily.InterNetwork;
-
-                Multiaddress remoteMultiaddress = new();
-                string strRemoteEndpointAddress = remoteIpEndpoint.Address.ToString();
-                remoteMultiaddress = isRemoteIP4 ? remoteMultiaddress.Add<IP4>(strRemoteEndpointAddress) : remoteMultiaddress.Add<IP6>(strRemoteEndpointAddress);
-                remoteMultiaddress = remoteMultiaddress.Add<TCP>(remoteIpEndpoint.Port);
-
-                context.RemoteEndpoint = remoteMultiaddress;
-                context.Connected(context.RemotePeer);
-
+          
                 X509Certificate certificate = CertificateHelper.CertificateFromIdentity(_sessionKey, context.LocalPeer.Identity);
 
                 SslServerAuthenticationOptions serverAuthenticationOptions = new()
@@ -103,7 +123,7 @@ public class TlsProtocol : IProtocol
                     ClientCertificateRequired = true,
                 };
 
-                _logger?.LogDebug("Accepted new TCP client connection from {RemoteEndPoint}", tcpClient.Client.RemoteEndPoint);
+                // _logger?.LogDebug("Accepted new TCP client connection from {RemoteEndPoint}", tcpClient.Client.RemoteEndPoint);
                 SslStream sslStream = new(tcpClient.GetStream(), false, serverAuthenticationOptions.RemoteCertificateValidationCallback);
 
                 try
@@ -135,8 +155,13 @@ public class TlsProtocol : IProtocol
                 }
 
                 IChannel upChannel = channelFactory.SubListen(context);
-                await ProcessStreamsAsync(sslStream, tcpClient, upChannel, context);
-            }
+               await ProcessStreamsAsync(sslStream,  tcpClient, upChannel, context);
+
+    // signalingChannel.GetAwaiter().OnCompleted(() =>
+    // {
+    //     memoryStream.Close();
+    // });
+    }
             catch (Exception ex)
             {
                 _logger?.LogError("An unexpected exception occurred while accepting TCP client: {Message}", ex.Message);
@@ -145,51 +170,54 @@ public class TlsProtocol : IProtocol
             }
         }
     }
+    
 
     public async Task DialAsync(IChannel signalingChannel, IChannelFactory? channelFactory, IPeerContext context)
     {
         _logger?.LogInformation("Handling connection");
+        //  await signalingChannel.WriteLineAsync("/multistream/1.0.0\n/tls/1.0.0");
+
+       
         if (channelFactory is null)
         {
             throw new ArgumentException("Protocol is not properly instantiated");
         }
+        // Initialize the buffer and MemoryStream
+//     byte[] buffer = new byte[8192]; // Adjust buffer size as needed
+//     MemoryStream memoryStream = new MemoryStream();
+//     CancellationToken cancellationToken = CancellationToken.None;
+// while (true)
+// {
+//       ReadResult readResult = await signalingChannel.ReadAsync(buffer.Length);
 
-        Multiaddress addr = context.RemotePeer.Address;
-        bool rIsIp4 = addr.Has<IP4>();
-        MultiaddressProtocol protocol = rIsIp4 ? addr.Get<IP4>() : addr.Get<IP6>();
-        IPAddress rIpAddress = IPAddress.Parse(protocol.ToString()!);
-        int tcpPort = int.Parse(addr.Get<TCP>().ToString()!);
-        IPEndPoint remoteEndpoint = new(rIpAddress, tcpPort);
-        TcpClient tcpClient = new();
+//     // Extract data from ReadOnlySequence<byte> (readResult.Data)
+//     ReadOnlySequence<byte> data = readResult.Data;
 
-        try
-        {
-            await tcpClient.ConnectAsync(rIpAddress, tcpPort);
-        }
-        catch (SocketException ex)
-        {
-            _logger?.LogError("Failed to connect: {Message}", ex.Message);
-            return;
-        }
+//     // Determine how many bytes were read
+//     int bytesRead = (int)data.Length;
 
-        IPEndPoint localEndpoint = (IPEndPoint)tcpClient.Client.LocalEndPoint!;
-        IPEndPoint remoteIpEndpoint = (IPEndPoint)tcpClient.Client.RemoteEndPoint!;
+//     if (bytesRead == 0)
+//     {
+//         break; // Connection closed
+//     }
 
-        bool isIP4 = remoteIpEndpoint.AddressFamily == AddressFamily.InterNetwork;
+//     // Write the data from ReadOnlySequence<byte> into the MemoryStream
+//     foreach (var segment in data)
+//     {
+//         await memoryStream.WriteAsync(segment);
+//     }}
 
-        Multiaddress remoteMultiaddress = new();
-        var remoteIpAddress = isIP4 ? remoteIpEndpoint.Address.MapToIPv4() : remoteIpEndpoint.Address.MapToIPv6();
-        remoteMultiaddress = isIP4 ? remoteMultiaddress.Add<IP4>(remoteIpAddress) : remoteMultiaddress.Add<IP6>(remoteIpAddress);
-        context.RemoteEndpoint = remoteMultiaddress.Add<TCP>(remoteIpEndpoint.Port);
+//    memoryStream.Position = 0; // Reset position for reading from the beginning
+      Socket connectedSocket = context.Socket;// existing connected socket;
+// connectedSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+// Create a new TcpClient and assign the existing socket to it
+TcpClient tcpClient = new TcpClient
+{
+    Client = connectedSocket // Assign the connected socket to TcpClient
+};
 
-        Multiaddress localMultiaddress = new();
-        var localIpAddress = isIP4 ? localEndpoint.Address.MapToIPv4() : localEndpoint.Address.MapToIPv6();
-        localMultiaddress = isIP4 ? localMultiaddress.Add<IP4>(localIpAddress) : localMultiaddress.Add<IP6>(localIpAddress);
-        context.LocalEndpoint = localMultiaddress.Add<TCP>(localEndpoint.Port);
-
-        context.LocalPeer.Address = context.LocalEndpoint.Add<P2P>(context.LocalPeer.Identity.PeerId.ToString());
-        context.Connected(context.RemotePeer);
-
+// Now you can use the TcpClient as usual
+NetworkStream networkStream = tcpClient.GetStream();
         SslClientAuthenticationOptions clientAuthenticationOptions = new()
         {
             TargetHost = context.RemoteEndpoint.ToString(),
@@ -197,8 +225,8 @@ public class TlsProtocol : IProtocol
             RemoteCertificateValidationCallback = (_, c, _, _) => VerifyRemoteCertificate(context.RemotePeer.Identity.PeerId.ToString(), c),
             ClientCertificates = new X509CertificateCollection { CertificateHelper.CertificateFromIdentity(_sessionKey, context.LocalPeer.Identity) },
         };
-
-        SslStream sslStream = new(tcpClient.GetStream(), false, clientAuthenticationOptions.RemoteCertificateValidationCallback);
+//  await signalingChannel.WriteLineAsync("/multistream/1.0.0\n/tls/1.0.0");
+        SslStream sslStream = new(networkStream, false, clientAuthenticationOptions.RemoteCertificateValidationCallback);
 
         try
         {
@@ -226,6 +254,7 @@ public class TlsProtocol : IProtocol
             _logger?.LogError("An error occurred while authenticating the server: {Message}", ex.Message);
             return;
         }
+        //  NetworkStream networkStream = tcpClient.GetStream();
 
         LastNegotiatedApplicationProtocol = sslStream.NegotiatedApplicationProtocol;
 
@@ -234,7 +263,7 @@ public class TlsProtocol : IProtocol
 
         signalingChannel.GetAwaiter().OnCompleted(() =>
         {
-            tcpClient.Close();
+            // tcpClient.Close();
         });
     }
 
@@ -248,7 +277,7 @@ public class TlsProtocol : IProtocol
         return CertificateHelper.ValidateCertificate(certificate as X509Certificate2, remotePeerId);
     }
 
-    private static Task ProcessStreamsAsync(SslStream sslStream, TcpClient tcpClient, IChannel upChannel, IPeerContext context, CancellationToken cancellationToken = default)
+    private static Task ProcessStreamsAsync(SslStream sslStream, TcpClient tcpClient,  IChannel upChannel, IPeerContext context, CancellationToken cancellationToken = default)
     {
         upChannel.GetAwaiter().OnCompleted(() =>
         {
@@ -260,7 +289,7 @@ public class TlsProtocol : IProtocol
             byte[] buffer = new byte[4096];
             try
             {
-                while (tcpClient.Connected)
+                while (true)
                 {
                     int bytesRead = await sslStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
                     if (bytesRead == 0)

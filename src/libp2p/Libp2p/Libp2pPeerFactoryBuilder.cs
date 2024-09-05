@@ -5,6 +5,8 @@ using Nethermind.Libp2p.Core;
 using Nethermind.Libp2p.Protocols;
 using Nethermind.Libp2p.Protocols.Pubsub;
 using System.Runtime.Versioning;
+using System.Net.Security;
+
 
 namespace Nethermind.Libp2p.Stack;
 
@@ -26,9 +28,11 @@ public class Libp2pPeerFactoryBuilder : PeerFactoryBuilderBase<Libp2pPeerFactory
 
     protected override ProtocolStack BuildStack()
     {
+        var protocols = new List<SslApplicationProtocol> { SslApplicationProtocol.Http11, SslApplicationProtocol.Http2 , new SslApplicationProtocol("/yamux/1.0.0")    };
+
         ProtocolStack tcpEncryptionStack = enforcePlaintext ?
             Over<PlainTextProtocol>() :
-            Over<TlsProtocol>();
+            Over(new TlsProtocol(protocols));
 
         ProtocolStack tcpStack =
             Over<IpTcpProtocol>()

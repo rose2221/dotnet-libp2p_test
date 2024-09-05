@@ -3,6 +3,7 @@
 
 using Multiformats.Address;
 using System.Collections.Concurrent;
+using System.Net.Sockets;
 
 namespace Nethermind.Libp2p.Core;
 
@@ -11,6 +12,8 @@ public interface IPeerContext
     string Id { get; }
     IPeer LocalPeer { get; }
     IPeer RemotePeer { get; }
+
+    Socket? Socket { get; set; }
 
     Multiaddress RemoteEndpoint { get; set; }
     Multiaddress LocalEndpoint { get; set; }

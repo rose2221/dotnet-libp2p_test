@@ -68,6 +68,7 @@ public class IpTcpProtocol(ILoggerFactory? loggerFactory = null) : IProtocol
                 remoteMultiaddress = remoteMultiaddress.Add<TCP>(remoteIpEndpoint.Port);
 
                 clientContext.RemoteEndpoint = clientContext.RemotePeer.Address = remoteMultiaddress;
+        context.Socket = client;
 
                 IChannel upChannel = channelFactory.SubListen(clientContext);
 
@@ -225,7 +226,7 @@ public class IpTcpProtocol(ILoggerFactory? loggerFactory = null) : IProtocol
                 _ = upChannel.CloseAsync();
             }
         });
-
+context.Socket = client;
         await Task.WhenAll(receiveTask, sendTask);
         _ = upChannel.CloseAsync();
     }

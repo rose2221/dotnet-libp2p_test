@@ -3,6 +3,8 @@
 
 using Multiformats.Address;
 using System.Collections.Concurrent;
+using System.Net.Sockets;
+
 
 namespace Nethermind.Libp2p.Core;
 
@@ -11,6 +13,8 @@ public class PeerContext : IPeerContext
     public string Id { get; set; }
     public IPeer LocalPeer { get; set; }
     public IPeer RemotePeer { get; set; }
+
+    public Socket? Socket { get; set; }
     public Multiaddress RemoteEndpoint { get; set; }
     public Multiaddress LocalEndpoint { get; set; }
     public BlockingCollection<IChannelRequest> SubDialRequests { get; set; } = new();
