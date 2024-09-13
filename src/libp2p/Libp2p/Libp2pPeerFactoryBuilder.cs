@@ -27,11 +27,10 @@ public class Libp2pPeerFactoryBuilder : PeerFactoryBuilderBase<Libp2pPeerFactory
 
     protected override ProtocolStack BuildStack()
     {
-        var protocols = new List<SslApplicationProtocol> { SslApplicationProtocol.Http11, SslApplicationProtocol.Http2 , new SslApplicationProtocol("/yamux/1.0.0")    };
-
+        
         ProtocolStack tcpEncryptionStack = enforcePlaintext ?
             Over<PlainTextProtocol>() :
-            Over(new TlsProtocol(protocols));
+            Over(new TlsProtocol());
 
         ProtocolStack tcpStack =
             Over<IpTcpProtocol>()
