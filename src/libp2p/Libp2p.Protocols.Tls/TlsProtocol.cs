@@ -15,6 +15,7 @@ namespace Nethermind.Libp2p.Protocols;
 public class TlsProtocol(MultiplexerSettings? multiplexerSettings = null, ILoggerFactory? loggerFactory = null) : IProtocol
 {
     private readonly ECDsa _sessionKey = ECDsa.Create();
+    private readonly List<SslApplicationProtocol> _protocols;
     private readonly ILogger<TlsProtocol>? _logger = loggerFactory?.CreateLogger<TlsProtocol>();
     public SslApplicationProtocol? LastNegotiatedApplicationProtocol { get; private set; }
     public string Id => "/tls/1.0.0";
@@ -78,11 +79,11 @@ public class TlsProtocol(MultiplexerSettings? multiplexerSettings = null, ILogge
         MultiaddressProtocol ipProtocol = isIP4 ? addr.Get<IP4>() : addr.Get<IP6>();
         IPAddress ipAddress = IPAddress.Parse(ipProtocol.ToString());
 
-        var _protocols = multiplexerSettings is null ?
-            new List<SslApplicationProtocol> { } :
-            !multiplexerSettings.Multiplexers.Any() ?
-            new List<SslApplicationProtocol> { } :
-            multiplexerSettings.Multiplexers.Select(proto => new SslApplicationProtocol(proto.Id)).ToList();
+        // var _protocols = multiplexerSettings is null ?
+        //     new List<SslApplicationProtocol> { } :
+        //     !multiplexerSettings.Multiplexers.Any() ?
+        //     new List<SslApplicationProtocol> { } :
+        //     multiplexerSettings.Multiplexers.Select(proto => new SslApplicationProtocol(proto.Id)).ToList();
 
         SslClientAuthenticationOptions clientAuthenticationOptions = new()
         {
@@ -112,6 +113,7 @@ public class TlsProtocol(MultiplexerSettings? multiplexerSettings = null, ILogge
             _logger?.LogDebug("TLS Authentication Exception Details: {StackTrace}", ex.StackTrace);
             return;
         }
+        _logger?.LogDebug($"{Encoding.UTF8.GetString(sslStream.NegotiatedApplicationProtocol.Protocol.ToArray())} protocol negotiated");
         _logger?.LogDebug("Subdialing protocols: {Protocols}.", string.Join(", ", channelFactory.SubProtocols.Select(x => x.Id)));
         IChannel upChannel = channelFactory.SubDial(context);
         _logger?.LogDebug("SubDial completed for PeerId {RemotePeerId}.", context.RemotePeer.Address.Get<P2P>());

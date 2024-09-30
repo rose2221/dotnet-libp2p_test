@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Nethermind.Libp2p.Core;
 using Nethermind.Libp2p.Protocols;
 using Nethermind.Libp2p.Protocols.Pubsub;
+using Microsoft.Extensions.DependencyInjection;
+
 using System.Net.Security;
 using System.Runtime.Versioning;
 
@@ -13,18 +15,23 @@ namespace Nethermind.Libp2p.Stack;
 public class Libp2pPeerFactoryBuilder : PeerFactoryBuilderBase<Libp2pPeerFactoryBuilder, Libp2pPeerFactory>, ILibp2pPeerFactoryBuilder
 {
     private bool enforcePlaintext;
-
+private readonly ILoggerFactory? _loggerFactory;
+private readonly MultiplexerSettings? _multiplexerSettings;
     public ILibp2pPeerFactoryBuilder WithPlaintextEnforced()
     {
         enforcePlaintext = true;
         return this;
     }
 
-    public Libp2pPeerFactoryBuilder(IServiceProvider? serviceProvider = default) : base(serviceProvider) { }
+    public Libp2pPeerFactoryBuilder(IServiceProvider? serviceProvider = default) : base(serviceProvider) { 
+   _loggerFactory = serviceProvider?.GetService<ILoggerFactory>();
+  _multiplexerSettings = serviceProvider?.GetService<MultiplexerSettings>();
+
+    }
 
     protected override ProtocolStack BuildStack()
     {
-        ProtocolStack tcpEncryptionStack = enforcePlaintext ? Over<PlainTextProtocol>() : Over<NoiseProtocol>().Or<TlsProtocol>();
+        ProtocolStack tcpEncryptionStack = enforcePlaintext ? Over<PlainTextProtocol>() : Over(new TlsProtocol(_multiplexerSettings, _loggerFactory));
 
         ProtocolStack tcpStack = Over<IpTcpProtocol>()
             .Over<MultistreamProtocol>()
